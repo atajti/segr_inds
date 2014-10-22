@@ -19,7 +19,7 @@ d_ij <- function(area, lng, lat, mode=c("classic", "realistic")){
   #  classic: self-distance is (0.6 * area)^0.5
   #  realistic: self-distance is equal to the nearest neighbour
 
-  
+  mode <- match.arg(mode)
   if(!(is.numeric(area) && is.numeric(lng) && is.numeric(lat))){
     stop("area, lng and lat must be numeric!")
   }
@@ -129,11 +129,12 @@ abscent_index <- function(x, area, lng, lat, cent.dist=NULL, incr_order_cent_dis
   #  GeoCentrum: center is the mean of lat and lng
   #  PreCentrum: the centrum is given in cent_lng, cent_lat
 
+  centrum_mode <- match.arg(centrum_mode)
   if(centrum_mode=="GeoCentrum"){
     cent_lng <- mean(lng, na.rm=TRUE)
     cent_lat <- mean(lat, na.rm=TRUE)
   }
-  if(is.null(cent_dist)){
+  if(is.null(cent.dist)){
     cent.dist <- cent_dist(lng, lat, centrum_mode, cent_lng, cent_lat)
   }
   if(missing(incr_order_cent_dist)){
@@ -171,7 +172,6 @@ absclust_index <- function(x, X, total, cij, area, lng, lat,
   if(missing(X)){
     X <- sum(x)
   }
-  
 
   masodik.tag_absC <- (X/(nrow(cij))^2)*sum(cij)
   szamlalo.elsotag__absC <- 0
@@ -340,13 +340,18 @@ distdecinteract_index <- function(x, X, total, dij, y, area, lng, lat,
     X <- sum(x)
   }
 
+  cij <- exp(-dij)
+  kij <- cij*total/sum(cij*total)
 
-  kij <- total^(-dij)
-  kij <- kij/colSums(kij)
+  distinteract_value <- sum(x)/X*sum(kij*y/total)
 
-  fst <- x/X
-  snd <- colSums(t(kij)*y/total)
-  distinteract_value <- fst*snd
+
+  # kij <- total^(-dij)
+  # kij <- kij/colSums(kij)
+
+  # fst <- x/X
+  # snd <- colSums(t(kij)*y/total)
+  # distinteract_value <- fst*snd
 
   return(distinteract_value)
 }
@@ -368,12 +373,17 @@ distdecisolation_index <- function(x, X, total, dij, area, lng, lat,
     dij <- d_ij(area, lng, lat, mode)
   }
 
-  kij <- total^(-dij)
-  kij <- kij/colSums(kij)
+  cij <- exp(-dij)
+  kij <- cij*total/sum(cij*total)
 
-  fst <- x/X
-  snd <- colSums(t(kij)*x/total)
-  distinteract_value <- fst*snd
+  distinteract_value <- sum(x)/X*sum(kij*x/total)
+
+  # kij <- total^(-dij)
+  # kij <- kij/colSums(kij)
+
+  # fst <- x/X
+  # snd <- colSums(t(kij)*x/total)
+  # distinteract_value <- fst*snd
 
   return(distinteract_value)
 }
@@ -426,22 +436,27 @@ gini_index <- function(x, total, TOTAL, p, P){
   if(missing(P)){
     P <- sum(x, na.rm=TRUE) / TOTAL
   }
+  # a |pi - pj| mátrixokkal való előállítása az abs()-en belül
+  G <- sum((total %*% t(total) %*%
+              abs(
+                matrix(rep(p, length(p)), length(p)) -
+                matrix(rep(p, length(p)), length(p), byrow=TRUE))) /
+            2*TOTAL^2*P*(1-P))
+  # cel_matrixPOP <- matrix(as.vector(total), length(total), length(total) )
+  # cel_matrix_p_i <- matrix(as.vector(p), length(total), length(total))
 
-  cel_matrixPOP <- matrix(as.vector(total), length(total), length(total) )
-  cel_matrix_p_i <- matrix(as.vector(p), length(total), length(total))
+  # options(warn = -1)
+  # def_matrix <- matrix(c(1:(1+length(total))),length(total),length(total))
+  # def_matrix[upper.tri(def_matrix)] <-  def_matrix[upper.tri(def_matrix)]-1 
+  # options(warn = 0)
 
-  options(warn = -1)
-  def_matrix <- matrix(c(1:(1+length(total))),length(total),length(total))
-  def_matrix[upper.tri(def_matrix)] <-  def_matrix[upper.tri(def_matrix)]-1 
-  options(warn = 0)
+  # p_i_M_p_j <- abs(cel_matrix_p_i[def_matrix] - cel_matrix_p_i )
+  # t_i_x_t_j <- cel_matrixPOP*cel_matrixPOP[def_matrix]
 
-  p_i_M_p_j <- abs(cel_matrix_p_i[def_matrix] - cel_matrix_p_i )
-  t_i_x_t_j <- cel_matrixPOP*cel_matrixPOP[def_matrix]
+  # szamlalo <- sum((p_i_M_p_j * t_i_x_t_j),  na.rm = TRUE )
 
-  szamlalo <- sum((p_i_M_p_j * t_i_x_t_j),  na.rm = TRUE )
-
-  gini_value <- szamlalo / (2*TOTAL^2*P*(1-P))
-  
+  # gini_value <- szamlalo / (2*TOTAL^2*P*(1-P))
+  gini_value <- G
   return(gini_value)
 }
 
@@ -501,6 +516,7 @@ relcent_index <- function(x, y, lng, lat, cent.dist, incr_order_cent_dist,
   #  GeoCentrum: center is the mean of lat and lng
   #  PreCentrum: the centrum is given in cent_lng, cent_lat
 
+  centrum_mode <- match.arg(centrum_mode)
   if(centrum_mode=="GeoCentrum"){
     cent_lng <- mean(lng, na.rm=TRUE)
     cent_lat <- mean(lat, na.rm=TRUE)
@@ -541,7 +557,8 @@ relclust_index <- function(x, X, y, Y, cij, area, lng, lat,
     cij <- c_ij(area, lng, lat, mode)
   }
 
-  relclust_value <- P_gg(x, X, cij) / P_gg(y, Y, cij)
+  relclust_value <- (sum(x%*%t(x)%*%cij/X^2)/sum(y%*%t(y)%*%cij/Y^2))-1
+  # relclust_value <- P_gg(x, X, cij) / P_gg(y, Y, cij)
 
   return(relclust_value)
 }
@@ -585,6 +602,7 @@ relconc_index <- function(x, X, y, Y, area, total, TOTAL, incr_order, decr.order
     decr.order <- order(area, decreasing = TRUE)
   }
 
+  #sum(x[incr_order]*area[incr_order]/X)/sum(y[incr_order]*area[incr_order]/Y)
   total.sum.inc <- cumsum(total[incr_order])
   n1 <- sum(!(total.sum.inc > X)) + 1
   t1 <- sum(total[incr_order][1:n1])
